@@ -38,8 +38,29 @@ if (!srcDir || !outFile) {
 }
 const files = readdirSync(srcDir).filter((f) => /^\d+_\w+\.sql$/.test(f)).sort();
 assert(files.length, `ไม่พบไฟล์ NN_CODE.sql ใน ${srcDir}`);
-// ยกคำอธิบายแฟ้ม (ชื่อแฟ้ม / วัตถุประสงค์ / ตารางที่ใช้) จาก SQL ต้นทางมาไว้เหนือ view
-const describe = (sql) => (sql.match(/^-- (แฟ้มที่ \d+:|วัตถุประสงค์:|ตารางข้อมูลที่ใช้:).*$/gm) ?? []).join("\n");
+// คำอธิบายแฟ้มของเราเอง ใช้เป็น comment เหนือ view แต่ละตัว
+const FILES = {
+  INS: "สิทธิการรักษาของผู้ป่วยในแต่ละครั้งที่รับบริการ",
+  PAT: "ข้อมูลประจำตัวผู้ป่วย 1 แถวต่อ HN",
+  OPD: "การมารับบริการผู้ป่วยนอก 1 แถวต่อ visit",
+  ORF: "การส่งต่อผู้ป่วยนอก",
+  ODX: "การวินิจฉัยโรคผู้ป่วยนอก",
+  OOP: "หัตถการผู้ป่วยนอก",
+  IPD: "การนอนโรงพยาบาล 1 แถวต่อ admission",
+  IRF: "การส่งต่อผู้ป่วยใน",
+  IDX: "การวินิจฉัยโรคผู้ป่วยใน",
+  IOP: "หัตถการผู้ป่วยใน",
+  CHT: "ยอดค่ารักษารวมต่อครั้ง",
+  CHA: "ค่ารักษาแยกตามหมวดค่าใช้จ่าย",
+  AER: "อุบัติเหตุ ฉุกเฉิน และการรับส่งต่อ",
+  ADP: "ค่าบริการเพิ่มเติมและบริการเฉพาะที่เบิกแยกรายการ",
+  LVD: "ช่วงที่ผู้ป่วยในลากลับบ้าน",
+  DRU: "รายการยาที่จ่าย",
+  LABFU: "ผลตรวจทางห้องปฏิบัติการของผู้ป่วยโรคเรื้อรัง",
+  PHDB: "รายการตามอัตราค่าบริการสาธารณสุข",
+};
+// ตาราง HOSxP ที่ view อ่าน ดึงจากตัว SQL เอง (FROM/JOIN) จึงตรงกับ query เสมอ
+const tablesOf = (view) => [...new Set([...view.matchAll(/\b(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*)/gi)].map((m) => m[1]))].filter((t) => t !== "fdh_param");
 const parts = [
   "-- ขั้นที่ 1 ของ fdh-pre-validate: สร้าง view 16 แฟ้ม FDH บนฐาน HOSxP",
   "--",
@@ -75,8 +96,10 @@ const parts = [
   "INSERT IGNORE INTO fdh_param (id, start_date, end_date) VALUES (1, CURDATE(), CURDATE());",
   "",
   ...files.map((f) => {
-    const sql = readFileSync(join(srcDir, f), "utf8");
-    return `${describe(sql)}\n${toView(f.replace(/^\d+_|\.sql$/g, ""), sql)}\n`;
+    const code = f.replace(/^\d+_|\.sql$/g, "");
+    const view = toView(code, readFileSync(join(srcDir, f), "utf8"));
+    assert(FILES[code], `${code}: ยังไม่มีคำอธิบายแฟ้มใน FILES`);
+    return `-- fdh_${code.toLowerCase()} = แฟ้ม ${code}: ${FILES[code]}\n-- อ่านจากตาราง HOSxP: ${tablesOf(view).join(", ")}\n${view}\n`;
   }),
 ];
 writeFileSync(outFile, parts.join("\n"));

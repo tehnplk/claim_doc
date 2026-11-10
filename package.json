@@ -2,6 +2,7 @@
   "name": "claim-doc-skills",
   "version": "0.1.0",
   "description": "Agent skills สำหรับงานเคลมของโรงพยาบาล (Claude Code, Codex, Antigravity)",
+  "repository": "github:tehnplk/claim_doc",
   "type": "module",
   "bin": {
     "claim-doc-skills": "bin/install.mjs"

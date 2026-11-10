@@ -35,9 +35,8 @@ CREATE TABLE IF NOT EXISTS fdh_param (
 ) ENGINE=InnoDB;
 INSERT IGNORE INTO fdh_param (id, start_date, end_date) VALUES (1, CURDATE(), CURDATE());
 
--- แฟ้มที่ 1: INS (มาตรฐานแฟ้มข้อมูลผู้มีสิทธิการรักษาพยาบาล) - 19 ฟิลด์
--- วัตถุประสงค์: ตรวจสอบสิทธิการรักษาหลัก สิทธิย่อย วันหมดอายุสิทธิ และหน่วยบริการหลัก/รอง
--- ตารางข้อมูลที่ใช้: ovst, patient, pttype, patient_pttype
+-- fdh_ins = แฟ้ม INS: สิทธิการรักษาของผู้ป่วยในแต่ละครั้งที่รับบริการ
+-- อ่านจากตาราง HOSxP: opdconfig, ovst, patient, pttype, patient_pttype
 CREATE OR REPLACE VIEW fdh_ins AS
 SELECT 
  v.hn AS `HN`,
@@ -65,9 +64,8 @@ LEFT JOIN pttype p ON p.pttype = v.pttype
 LEFT JOIN patient_pttype pp ON pp.hn = v.hn AND pp.pttype = v.pttype
 WHERE v.vstdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 2: PAT (มาตรฐานแฟ้มข้อมูลผู้ป่วยกลาง) - 15 ฟิลด์
--- วัตถุประสงค์: ข้อมูลประชากรผู้ป่วยกลาง เลขบัตรประชาชน วันเกิด เพศ ที่อยู่ สัญชาติ อาชีพ
--- ตารางข้อมูลที่ใช้: patient, ovst
+-- fdh_pat = แฟ้ม PAT: ข้อมูลประจำตัวผู้ป่วย 1 แถวต่อ HN
+-- อ่านจากตาราง HOSxP: opdconfig, patient, ovst
 CREATE OR REPLACE VIEW fdh_pat AS
 SELECT DISTINCT
  (SELECT hospitalcode FROM opdconfig LIMIT 1) AS `HCODE`,
@@ -91,9 +89,8 @@ WHERE EXISTS (
  WHERE o.hn = pt.hn AND o.vstdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param)
 );
 
--- แฟ้มที่ 3: OPD (มาตรฐานแฟ้มข้อมูลการมารับบริการผู้ป่วยนอก) - 15 ฟิลด์
--- วัตถุประสงค์: ข้อมูลการตรวจรักษาผู้ป่วยนอก วันเวลา คลินิก 5 หลัก อาการสำคัญ สัญญาณชีพ ประเภทการมา/กลับ
--- ตารางข้อมูลที่ใช้: ovst, opdscreen, ipt, referin, referout, oapp
+-- fdh_opd = แฟ้ม OPD: การมารับบริการผู้ป่วยนอก 1 แถวต่อ visit
+-- อ่านจากตาราง HOSxP: ovst, opdscreen, ipt, referin, referout, oapp
 CREATE OR REPLACE VIEW fdh_opd AS
 SELECT 
  v.hn AS `HN`,
@@ -128,9 +125,8 @@ LEFT JOIN referout rf_out ON rf_out.vn = v.vn
 LEFT JOIN oapp oa ON oa.hn = v.hn AND oa.nextdate = v.vstdate
 WHERE v.vstdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 4: ORF (มาตรฐานแฟ้มข้อมูลผู้ป่วยนอกที่ต้องส่งต่อ) - 7 ฟิลด์
--- วัตถุประสงค์: ข้อมูลการส่งต่อผู้ป่วยนอก รหัสสถานพยาบาลปลายทาง ประเภทการส่งต่อ
--- ตารางข้อมูลที่ใช้: referout, ovst
+-- fdh_orf = แฟ้ม ORF: การส่งต่อผู้ป่วยนอก
+-- อ่านจากตาราง HOSxP: referout, ovst
 CREATE OR REPLACE VIEW fdh_orf AS
 SELECT 
  ro.hn AS `HN`,
@@ -145,9 +141,8 @@ INNER JOIN ovst v ON v.vn = ro.vn
 WHERE ro.refer_date BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param)
  AND (v.an IS NULL OR v.an = '');
 
--- แฟ้มที่ 5: ODX (มาตรฐานแฟ้มข้อมูลวินิจฉัยโรคผู้ป่วยนอก) - 8 ฟิลด์
--- วัตถุประสงค์: รหัสการวินิจฉัยโรคผู้ป่วยนอก ICD-10, DiagType (1=Principal, 2=Comorbid), รหัสแพทย์
--- ตารางข้อมูลที่ใช้: ovstdiag, ovst, patient, doctor
+-- fdh_odx = แฟ้ม ODX: การวินิจฉัยโรคผู้ป่วยนอก
+-- อ่านจากตาราง HOSxP: ovstdiag, ovst, patient, doctor
 CREATE OR REPLACE VIEW fdh_odx AS
 SELECT 
  od.hn AS `HN`,
@@ -164,9 +159,8 @@ INNER JOIN patient pt ON pt.hn = od.hn
 LEFT JOIN doctor doc ON doc.code = od.doctor
 WHERE od.vstdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 6: OOP (มาตรฐานแฟ้มข้อมูลหัตถการผู้ป่วยนอก) - 8 ฟิลด์
--- วัตถุประสงค์: หัตถการผู้ป่วยนอก ICD-9-CM รหัสแพทย์ผู้ทำหัตถการ และค่าบริการ
--- ตารางข้อมูลที่ใช้: doctor_operation, ovst, patient, doctor
+-- fdh_oop = แฟ้ม OOP: หัตถการผู้ป่วยนอก
+-- อ่านจากตาราง HOSxP: doctor_operation, ovst, patient, doctor
 CREATE OR REPLACE VIEW fdh_oop AS
 SELECT 
  v.hn AS `HN`,
@@ -183,9 +177,8 @@ INNER JOIN patient pt ON pt.hn = v.hn
 LEFT JOIN doctor doc ON doc.code = dop.doctor
 WHERE v.vstdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 7: IPD (มาตรฐานแฟ้มข้อมูลผู้ป่วยใน) - 13 ฟิลด์
--- วัตถุประสงค์: ข้อมูลผู้ป่วยใน วันเวลารับ-จำหน่าย สถานภาพและชนิดจำหน่าย น้ำหนักแรกรับ หอผู้ป่วย
--- ตารางข้อมูลที่ใช้: ipt, ward
+-- fdh_ipd = แฟ้ม IPD: การนอนโรงพยาบาล 1 แถวต่อ admission
+-- อ่านจากตาราง HOSxP: ipt, ward
 CREATE OR REPLACE VIEW fdh_ipd AS
 SELECT 
  i.hn AS `HN`,
@@ -205,9 +198,8 @@ FROM ipt i
 LEFT JOIN ward w ON w.ward = i.ward
 WHERE i.dchdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 8: IRF (มาตรฐานแฟ้มข้อมูลผู้ป่วยในที่ต้องส่งต่อ) - 3 ฟิลด์
--- วัตถุประสงค์: ข้อมูลการส่งต่อผู้ป่วยใน รหัสสถานพยาบาล และประเภทการส่งต่อ
--- ตารางข้อมูลที่ใช้: referout, ipt
+-- fdh_irf = แฟ้ม IRF: การส่งต่อผู้ป่วยใน
+-- อ่านจากตาราง HOSxP: referout, ipt
 CREATE OR REPLACE VIEW fdh_irf AS
 SELECT 
  i.an AS `AN`,
@@ -217,9 +209,8 @@ FROM referout ro
 INNER JOIN ipt i ON i.vn = ro.vn
 WHERE i.dchdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 9: IDX (มาตรฐานแฟ้มข้อมูลวินิจฉัยโรคผู้ป่วยใน) - 4 ฟิลด์
--- วัตถุประสงค์: รหัสการวินิจฉัยโรคผู้ป่วยใน ICD-10 รหัสโรคหลัก โรคร่วม ภาวะแทรกซ้อน รหัสแพทย์
--- ตารางข้อมูลที่ใช้: iptdiag, ipt, doctor
+-- fdh_idx = แฟ้ม IDX: การวินิจฉัยโรคผู้ป่วยใน
+-- อ่านจากตาราง HOSxP: iptdiag, ipt, doctor
 CREATE OR REPLACE VIEW fdh_idx AS
 SELECT 
  id.an AS `AN`,
@@ -231,9 +222,8 @@ INNER JOIN ipt i ON i.an = id.an
 LEFT JOIN doctor doc ON doc.code = id.doctor
 WHERE i.dchdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 10: IOP (มาตรฐานแฟ้มข้อมูลหัตถการผู้ป่วยใน) - 8 ฟิลด์
--- วัตถุประสงค์: หัตถการและผ่าตัดผู้ป่วยใน ICD-9-CM วันเวลาเริ่ม-เสร็จสิ้น รหัสแพทย์
--- ตารางข้อมูลที่ใช้: iptoprt, ipt, doctor
+-- fdh_iop = แฟ้ม IOP: หัตถการผู้ป่วยใน
+-- อ่านจากตาราง HOSxP: iptoprt, ipt, doctor
 CREATE OR REPLACE VIEW fdh_iop AS
 SELECT 
  io.an AS `AN`,
@@ -249,9 +239,8 @@ INNER JOIN ipt i ON i.an = io.an
 LEFT JOIN doctor doc ON doc.code = io.doctor
 WHERE i.dchdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 11: CHT (มาตรฐานแฟ้มข้อมูลการเงิน แบบสรุป) - 11 ฟิลด์
--- วัตถุประสงค์: สรุปยอดค่ารักษาพยาบาล ยอดชำระเอง สิทธิ และเลขที่ใบแจ้งหนี้/ใบเสร็จ
--- ตารางข้อมูลที่ใช้: vn_stat, an_stat, patient, ovst, rcpt_print
+-- fdh_cht = แฟ้ม CHT: ยอดค่ารักษารวมต่อครั้ง
+-- อ่านจากตาราง HOSxP: vn_stat, patient, ovst, rcpt_print, an_stat
 CREATE OR REPLACE VIEW fdh_cht AS
 SELECT 
  vs.hn AS `HN`,
@@ -292,9 +281,8 @@ INNER JOIN patient pt ON pt.hn = ans.hn
 LEFT JOIN rcpt_print rp ON rp.vn = ans.vn
 WHERE ans.dchdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 12: CHA (มาตรฐานแฟ้มข้อมูลการเงิน แบบรายละเอียด 19 หมวด) - 7 ฟิลด์
--- วัตถุประสงค์: รายละเอียดค่ารักษาพยาบาลแยกตาม 19 หมวดมาตรฐาน สธ. / DRG Charge Item
--- ตารางข้อมูลที่ใช้: opitemrece, patient, income, drg_chrgitem
+-- fdh_cha = แฟ้ม CHA: ค่ารักษาแยกตามหมวดค่าใช้จ่าย
+-- อ่านจากตาราง HOSxP: opitemrece, patient, income
 CREATE OR REPLACE VIEW fdh_cha AS
 SELECT 
  op.hn AS `HN`,
@@ -311,9 +299,8 @@ WHERE COALESCE(op.rxdate, op.vstdate) BETWEEN (SELECT start_date FROM fdh_param)
 GROUP BY op.hn, op.an, op.vn, `DATE`, `CHRGITEM`, pt.cid
 HAVING `AMOUNT` > 0;
 
--- แฟ้มที่ 13: AER (มาตรฐานแฟ้มข้อมูลอุบัติเหตุ ฉุกเฉิน และรับส่งเพื่อรักษา) - 18 ฟิลด์
--- วัตถุประสงค์: ข้อมูลผู้ป่วยอุบัติเหตุฉุกเฉิน สิทธิ UCEP, GCS, ความฉุกเฉิน, รถพยาบาล
--- ตารางข้อมูลที่ใช้: er_regist, ovst, er_nursing_detail, referin
+-- fdh_aer = แฟ้ม AER: อุบัติเหตุ ฉุกเฉิน และการรับส่งต่อ
+-- อ่านจากตาราง HOSxP: er_regist, ovst, er_nursing_detail, referin, referout
 CREATE OR REPLACE VIEW fdh_aer AS
 SELECT 
  v.hn AS `HN`,
@@ -341,9 +328,8 @@ LEFT JOIN referin rin ON rin.vn = er.vn
 LEFT JOIN referout rout ON rout.vn = er.vn
 WHERE er.vstdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 14: ADP (มาตรฐานแฟ้มข้อมูลค่าใช้จ่ายเพิ่ม และบริการเฉพาะ) - 27 ฟิลด์
--- วัตถุประสงค์: รายการค่าบริการเฉพาะ TYPE 1-20, Fee Schedule, TMLT, กายภาพ, ทันตกรรม
--- ตารางข้อมูลที่ใช้: opitemrece, nondrugitems, ovst, doctor
+-- fdh_adp = แฟ้ม ADP: ค่าบริการเพิ่มเติมและบริการเฉพาะที่เบิกแยกรายการ
+-- อ่านจากตาราง HOSxP: opitemrece, nondrugitems, ovst, doctor
 CREATE OR REPLACE VIEW fdh_adp AS
 SELECT 
  op.hn AS `HN`,
@@ -380,9 +366,8 @@ LEFT JOIN doctor doc ON doc.code = op.doctor
 WHERE COALESCE(op.rxdate, op.vstdate) BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param)
  AND op.income NOT IN (3, 4);
 
--- แฟ้มที่ 15: LVD (มาตรฐานแฟ้มข้อมูลกรณีผู้ป่วยลากลับบ้าน Leave Day) - 7 ฟิลด์
--- วัตถุประสงค์: บันทึกการลากลับบ้านชั่วคราวของผู้ป่วยใน วันเวลาออก-กลับ และจำนวนวันลา
--- ตารางข้อมูลที่ใช้: ipt_home_leave, ipt
+-- fdh_lvd = แฟ้ม LVD: ช่วงที่ผู้ป่วยในลากลับบ้าน
+-- อ่านจากตาราง HOSxP: ipt_home_leave, ipt
 CREATE OR REPLACE VIEW fdh_lvd AS
 SELECT 
  hl.ipt_home_leave_id AS `SEQLVD`,
@@ -396,9 +381,8 @@ FROM ipt_home_leave hl
 INNER JOIN ipt i ON i.an = hl.an
 WHERE i.dchdate BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param);
 
--- แฟ้มที่ 16: DRU (มาตรฐานแฟ้มข้อมูลการใช้ยา) - 24 ฟิลด์
--- วัตถุประสงค์: การสั่งใช้ยา รหัสยา 24 หลัก, TMT, จำนวน, ราคาขาย, ราคาทุน, วิธีใช้ยา
--- ตารางข้อมูลที่ใช้: opitemrece, drugitems, patient, ovst, ipt, drugusage, doctor
+-- fdh_dru = แฟ้ม DRU: รายการยาที่จ่าย
+-- อ่านจากตาราง HOSxP: opdconfig, opitemrece, drugitems, patient, ovst, ipt, drugusage, doctor
 CREATE OR REPLACE VIEW fdh_dru AS
 SELECT 
  (SELECT hospitalcode FROM opdconfig LIMIT 1) AS `HCODE`,
@@ -438,9 +422,8 @@ LEFT JOIN doctor doc ON doc.code = op.doctor
 WHERE COALESCE(op.rxdate, op.vstdate) BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_date FROM fdh_param)
  AND op.income IN (3, 4);
 
--- แฟ้มที่ 17: LABFU (มาตรฐานแฟ้มตรวจแล็บผู้ป่วยโรคเรื้อรัง) - 8 ฟิลด์
--- วัตถุประสงค์: ตรวจติดตามแล็บ NCDs (FBS, HbA1c, eGFR, Lipid) รหัสแล็บมาตรฐาน และผลแล็บ
--- ตารางข้อมูลที่ใช้: lab_head, lab_order, lab_items, patient, ipt
+-- fdh_labfu = แฟ้ม LABFU: ผลตรวจทางห้องปฏิบัติการของผู้ป่วยโรคเรื้อรัง
+-- อ่านจากตาราง HOSxP: opdconfig, lab_head, lab_order, lab_items, patient, ipt
 CREATE OR REPLACE VIEW fdh_labfu AS
 SELECT 
  (SELECT hospitalcode FROM opdconfig LIMIT 1) AS `HCODE`,
@@ -460,9 +443,8 @@ WHERE lh.order_date BETWEEN (SELECT start_date FROM fdh_param) AND (SELECT end_d
  AND lo.lab_order_result IS NOT NULL 
  AND lo.lab_order_result <> '';
 
--- แฟ้มที่ 18: PHDB (มาตรฐานแฟ้มอัตราค่าบริการสาธารณสุข สธ. พ.ศ. 2568) - 7 ฟิลด์
--- วัตถุประสงค์: สกัดข้อมูลส่งออกตามประกาศกระทรวงสาธารณสุข เรื่อง อัตราค่าบริการ พ.ศ. 2568
--- ตารางข้อมูลที่ใช้: opitemrece, nondrugitems, ovst, ipt, pttype
+-- fdh_phdb = แฟ้ม PHDB: รายการตามอัตราค่าบริการสาธารณสุข
+-- อ่านจากตาราง HOSxP: opitemrece, nondrugitems, ovst, ipt, pttype
 CREATE OR REPLACE VIEW fdh_phdb AS
 SELECT 
  op.hn AS `HN`,
