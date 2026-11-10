@@ -9,7 +9,7 @@
 ## สิ่งที่ต้องมีก่อนติดตั้ง
 
 - Node.js 18 ขึ้นไป (เช็กด้วย `node -v`)
-- Git และสิทธิ์เข้าถึง repo นี้ (repo เป็น private ต้อง login GitHub บนเครื่องไว้แล้ว เช่น `gh auth login`)
+- Git (คำสั่ง `npx github:` ใช้ git ดึง repo)
 - agent อย่างน้อยหนึ่งตัว: Claude Code, Codex หรือ Antigravity
 
 ## ติดตั้ง
